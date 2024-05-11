@@ -1,5 +1,5 @@
 import pandas as pd
-
+import numpy as np
 
 # File extraction from xls/xlsx files
 def load_excel_files(file_paths):

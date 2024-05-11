@@ -2,8 +2,10 @@ import pandas as pd
 import numpy as np
 
 import importRegistroPeritoneal as imp
+import Anemia as a
 
-file_path = ['/home/dedalo/LevanteDPAnemia/Data/LevanteDPClinico.xls']
+
+file_path = ['/home/dedalo/PycharmProjects/LevanteDPAnemia/Data/LevanteDPC.xls']
 
 
 dfs_base = imp.load_excel_files(file_path)
@@ -22,3 +24,13 @@ baseline_dict = imp.calculate_baseline(df_analiticas, cat_cols, lab_cols, aggreg
 
 col_nans, row_nans = imp.analyze_nans(df_analiticas, print_col_results=False, print_row_results=False)
 nan_results = imp.analyze_nans(df_analiticas)
+
+
+# Add anemia column based on 'HEMOGLOBINA' and 'SEXO' specified in KDIGO guidelines
+
+a.add_anemia_column(df_analiticas)
+
+
+# Calculate prevalence for every year
+
+anemia_dict = a.anemia_prevalence(df_analiticas)
