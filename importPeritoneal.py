@@ -123,3 +123,32 @@ def print_nan_col_results(col_results):
         for result, value in results.items():
             print(f'    {result}: {value}')
         print()
+
+
+def df_binner(df, bin_size, policy='first'):
+    # Calculate the minimum date for each patient
+    min_dates = df.groupby('REGISTRO')['FECHA'].min()
+
+    # Calculate the number of days since the first date for each patient
+    df['days_since_first'] = df.apply(lambda row: (row['FECHA'] - min_dates[row['REGISTRO']]).days, axis=1)
+
+    # Calculate the bin number
+    df['bin_num'] = np.floor(df['days_since_first'] / bin_size).astype(int)
+
+    # Calculate the start and end date of each bin
+    #df.reset_index(inplace=True)
+    #df['start_bin'] = min_dates[df['REGISTRO']] + pd.to_timedelta(df['bin_num'] * bin_size, unit='D')
+    #df['end_bin'] = min_dates[df['REGISTRO']] + pd.to_timedelta((df['bin_num'] + 1) * bin_size, unit='D')
+
+    # Group by 'REGISTRO' and 'bin_num', and select the row based on the policy
+    if policy == 'first':
+        grouped = df.sort_values('FECHA').groupby(['REGISTRO', 'bin_num']).first()
+    elif policy == 'last':
+        grouped = df.sort_values('FECHA').groupby(['REGISTRO', 'bin_num']).last()
+    else:
+        raise ValueError(f"Invalid policy: {policy}. Valid options are 'first' and 'last'.")
+
+    # Reset the index
+    grouped.reset_index(inplace=True)
+
+    return grouped

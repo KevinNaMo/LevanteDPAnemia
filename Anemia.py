@@ -6,15 +6,15 @@ def add_anemia_column(input_df, Hb_masc=13, Hb_fem=12):
     def check_anemia(row):
         # Check if 'SEXO' or 'HEMOGLOBINA' are NaN
         if pd.isna(row['SEXO']) or pd.isna(row['HEMOGLOBINA']):
-            print(f"NaN value for {row['REGISTRO']} since hb = {row['HEMOGLOBINA']}")
+            #print(f"NaN value for {row['REGISTRO']} since hb = {row['HEMOGLOBINA']}")
             return np.nan
         # Check if the patient is a man and has anemia
         elif row['SEXO'] == '1. Hombre' and row['HEMOGLOBINA'] < Hb_masc:
-            print(f"True value for {row['REGISTRO']} since hb = {row['HEMOGLOBINA']} and {row['SEXO']}")
+            #print(f"True value for {row['REGISTRO']} since hb = {row['HEMOGLOBINA']} and {row['SEXO']}")
             return True
         # Check if the patient is a woman and has anemia
         elif row['SEXO'] == '2. Mujer' and row['HEMOGLOBINA'] < Hb_fem:
-            print(f"True value for {row['REGISTRO']} since hb = {row['HEMOGLOBINA']} and {row['SEXO']}")
+            #print(f"True value for {row['REGISTRO']} since hb = {row['HEMOGLOBINA']} and {row['SEXO']}")
             return True
         # If none of the above conditions are met, the patient does not have anemia
         else:
@@ -38,15 +38,15 @@ def anemia_prevalence(df):
     anemia_df.drop_duplicates(subset=['YEAR', 'REGISTRO'], keep='first', inplace=True)
 
     # Group by 'YEAR' and calculate the sum of 'ANEMIA' (True is 1, False is 0)
-    yearly_anemia_sum = anemia_df.groupby('YEAR')['ANEMIA'].sum()
-    print(f'yearly anemia: {yearly_anemia_sum}')
+    yearly_anemia_sum = pd.to_numeric(anemia_df.groupby('YEAR')['ANEMIA'].sum())
+    #print(f'yearly anemia: {yearly_anemia_sum}')
 
     # Group by 'YEAR' and get the number of unique patients
     yearly_patients = anemia_df.groupby('YEAR')['REGISTRO'].nunique()
-    print(f'total_patients: {yearly_patients}')
+    #print(f'total_patients: {yearly_patients}')
 
     # Calculate the prevalence of 'ANEMIA' for each year
     prevalence = (yearly_anemia_sum / yearly_patients) * 100
-    prevalence = np.round(prevalence, 2)
+    prevalence = prevalence.round(2)
 
     return prevalence.to_dict()
