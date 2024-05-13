@@ -15,7 +15,7 @@ df_analiticas = i.merge_dataframes(dfs_base['Analíticas'], dfs_base['Pacientes'
 # Clean NaNs for interesting columns
 
 df_analiticas = df_analiticas.dropna(subset=['HEMOGLOBINA'])
-
+dfs_base['Ingresos'] = dfs_base['Ingresos'].dropna(subset=['FINGRESO'])
 
 # Select years
 
@@ -26,6 +26,11 @@ df_analiticas = df_analiticas.loc[mask]
 # Add anemia column based on 'HEMOGLOBINA' and 'SEXO' specified in KDIGO guidelines
 
 a.add_anemia_column(df_analiticas)
+
+
+# Include patients that have -30 to 30 days max between the INICIO_DP and the first lab test
+
+included_df = h.include_patients(df_analiticas, 30)
 
 
 # Baseline
@@ -46,15 +51,4 @@ nan_results = i.analyze_nans(df_analiticas)
 
 # Calculate prevalence for every year
 
-anemia_dict = a.anemia_prevalence(df_analiticas)
-pprint.pprint(anemia_dict)
-
-
-# Check hospitalization data allocation
-
-h.check_common_values(df_analiticas, dfs_base['Ingresos'], 'FECHA', 'FINGRESO', 'REGISTRO')
-
-
-# Binn time in fixed time-frames to aggregate data.
-
-binned_df = i.df_binner(df_analiticas, 182, 'last')
+anemia_dict = a.anemia_prevalence(included_df, print_results=True, print_graph=True)

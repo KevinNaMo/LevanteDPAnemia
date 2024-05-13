@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 def add_anemia_column(input_df, Hb_masc=13, Hb_fem=12):
     # Define a function to apply to each row
@@ -24,7 +25,10 @@ def add_anemia_column(input_df, Hb_masc=13, Hb_fem=12):
     input_df['ANEMIA'] = input_df.apply(check_anemia, axis=1)
 
 
-def anemia_prevalence(df):
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def anemia_prevalence(df, print_results=False, print_graph=False):
     # Create a temporary dataframe with the necessary columns
     anemia_df = df[['REGISTRO', 'FECHA', 'ANEMIA']].copy()
 
@@ -39,14 +43,28 @@ def anemia_prevalence(df):
 
     # Group by 'YEAR' and calculate the sum of 'ANEMIA' (True is 1, False is 0)
     yearly_anemia_sum = pd.to_numeric(anemia_df.groupby('YEAR')['ANEMIA'].sum())
-    #print(f'yearly anemia: {yearly_anemia_sum}')
 
     # Group by 'YEAR' and get the number of unique patients
     yearly_patients = anemia_df.groupby('YEAR')['REGISTRO'].nunique()
-    #print(f'total_patients: {yearly_patients}')
 
     # Calculate the prevalence of 'ANEMIA' for each year
     prevalence = (yearly_anemia_sum / yearly_patients) * 100
     prevalence = prevalence.round(2)
 
+    # Print results if print_results is True
+    if print_results:
+        print("Yearly Anemia Prevalence:")
+        for year, value in prevalence.items():
+            print(f"{year}: {value}%")
+
+    # Render a bar graph if print_graph is True
+    if print_graph:
+        plt.figure(figsize=(10, 5))
+        prevalence.plot(kind='bar')
+        plt.title('Yearly Anemia Prevalence')
+        plt.xlabel('Year')
+        plt.ylabel('Prevalence (%)')
+        plt.show()
+
     return prevalence.to_dict()
+
