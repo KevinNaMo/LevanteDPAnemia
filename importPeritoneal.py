@@ -34,7 +34,107 @@ def merge_dataframes(main_df, second_df, column_name):
     return merged_df
 
 
-def calculate_baseline(input_df, cat_cols, lab_cols, aggregation='average'):
+def filter_by_year(df_list, date_cols, from_year, last_year):
+    for i in range(len(df_list)):
+        df = df_list[i].copy()  # Make a copy to avoid SettingWithCopyWarning
+        date_col = date_cols[i]
+
+        # Convert the date_col to datetime using .loc to avoid warnings
+        df.loc[:, date_col] = pd.to_datetime(df[date_col])
+
+        # Create a mask for the dates within the range
+        mask = (df[date_col] >= pd.Timestamp(from_year, 1, 1)) & (df[date_col] <= pd.Timestamp(last_year, 12, 31))
+
+        # Apply the mask to the dataframe
+        df_list[i] = df.loc[mask]
+
+    return tuple(df_list)
+
+
+def bool_col_convert(df, columns):
+    for col in columns:
+        df[col] = df[col].fillna('NO').map({'SI': True, 'NO': False})
+    return df
+
+
+def add_age_column(input_df):
+    # Convert 'INICIO_DP' and 'NACIMIENTO' to datetime format
+    input_df['INICIO_DP'] = pd.to_datetime(input_df['INICIO_DP'])
+    input_df['NACIMIENTO'] = pd.to_datetime(input_df['NACIMIENTO'])
+
+    # Calculate the difference in years and assign it to the new 'EDAD' column
+    input_df['EDAD'] = (input_df['INICIO_DP'] - input_df['NACIMIENTO']).dt.days // 365
+
+    # Convert 'EDAD' to int type
+    input_df['EDAD'] = input_df['EDAD'].astype(int)
+
+
+def add_ckd_column(df):
+    # Define a function to apply to each row
+    def calculate_ckd(row):
+        # Check if 'SEXO', 'CREATININA' or 'EDAD' are NaN
+        if pd.isna(row['SEXO']) or pd.isna(row['CREATININA']) or pd.isna(row['EDAD']):
+            return np.nan
+
+        # Calculate the CKD-EPI creatinine equation based on the sex
+        if row['SEXO'] == '1. Hombre':
+            if row['CREATININA'] <= 0.9:
+                return 141 * (row['CREATININA'] / 0.9) ** -0.411 * 0.993 ** row['EDAD']
+            else:
+                return 141 * (row['CREATININA'] / 0.9) ** -1.209 * 0.993 ** row['EDAD']
+        elif row['SEXO'] == '2. Mujer':
+            if row['CREATININA'] <= 0.7:
+                return 144 * (row['CREATININA'] / 0.7) ** -0.329 * 0.993 ** row['EDAD']
+            else:
+                return 144 * (row['CREATININA'] / 0.7) ** -1.209 * 0.993 ** row['EDAD']
+
+    # Apply the function to each row and assign the results to the new 'CKD_CALC' column
+    df['CKD_CALC'] = df.apply(calculate_ckd, axis=1)
+
+    # Define a function to apply to each row
+    def calculate_ckd_stage(row):
+        # Check if 'CKD_CALC' is NaN
+        if pd.isna(row['CKD_CALC']):
+            return np.nan
+
+        # Determine the CKD stage based on the 'CKD_CALC' value
+        if row['CKD_CALC'] > 90:
+            return 'Stage 1'
+        elif 60 <= row['CKD_CALC'] <= 89:
+            return 'Stage 2'
+        elif 45 <= row['CKD_CALC'] <= 59:
+            return 'Stage 3A'
+        elif 30 <= row['CKD_CALC'] <= 44:
+            return 'Stage 3B'
+        elif 15 <= row['CKD_CALC'] <= 29:
+            return 'Stage 4'
+        else:
+            return 'Stage 5'
+
+    # Apply the function to each row and assign the results to the new 'CKD_STAGE' column
+    df['CKD_STAGE'] = df.apply(calculate_ckd_stage, axis=1)
+
+    return df
+    
+
+def exclude_patients(df, exclude_col, verbose=False):
+    number_rows_before_deletion = df.shape[0]
+
+    for col in exclude_col:
+        df = df[df[col] != True]
+
+    number_rows_after_deletion = df.shape[0]
+    percent_deleted_rows = ((number_rows_before_deletion - number_rows_after_deletion) / number_rows_before_deletion) * 100
+
+    if verbose:
+        print(f'Rows before excluding patients: {number_rows_before_deletion}')
+        print(f'Rows after excluding patients: {number_rows_after_deletion}')
+        print(f'Percentage of deleted rows: {percent_deleted_rows}%')
+
+    return df
+
+
+def calculate_baseline(input_df, cat_cols, lab_cols, aggregation='first'):
     # Initialize the result dictionary
     result = {}
 
@@ -124,6 +224,22 @@ def print_nan_col_results(col_results):
             print(f'    {result}: {value}')
         print()
 
+
+# Clean rows with NaN values for the columns on the col_list
+
+def clean_df(df, col_list, verbose=False):
+    df_total_rows = df.shape[0]
+    unique_patients_before = df['REGISTRO'].nunique()  # Count unique patients before clean up
+
+    df = df.dropna(subset=col_list)
+    new_df_rows = df.shape[0]
+    unique_patients_after = df['REGISTRO'].nunique()  # Count unique patients after clean up
+
+    if verbose:
+        print(
+            f"The dataframe had {df_total_rows} rows (Unique patients: {unique_patients_before}), after the clean up of missing values, it has {new_df_rows} rows (Unique patients: {unique_patients_after})")
+
+    return df
 
 def df_binner(df, bin_size, policy='first'):
     # Calculate the minimum date for each patient

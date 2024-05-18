@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+from lifelines import CoxPHFitter
 
 # Check if there are (or not) labs for a given hospitalization date
 def check_common_values(base_df, second_df, base_col, second_col, registro_col):
@@ -136,7 +138,6 @@ def follow_up_periods(df, print_patients=False):
 
 
 def hosp_stats(lab_df, hosp_df):
-
     # Convert 'FECHA' and 'FINGRESO' to datetime
     lab_df['FECHA'] = pd.to_datetime(lab_df['FECHA'])
     hosp_df['FINGRESO'] = pd.to_datetime(hosp_df['FINGRESO'])
@@ -177,3 +178,137 @@ def hosp_stats(lab_df, hosp_df):
         count = hosp_years.count(i)
         percentage = (count / len(hosp_patients)) * 100
         print(f"Percentage of patients with hospitalisations during the {i} year: {percentage}%")
+
+
+def time_follow_limit(lab_df, hosp_df, limit_days):
+    # Initialize empty dataframes for the results
+    lab_df_new = pd.DataFrame()
+    hosp_df_new = pd.DataFrame()
+
+    # Loop over each patient
+    for registro in lab_df['REGISTRO'].unique():
+        # Get the data for this patient
+        lab_patient = lab_df[lab_df['REGISTRO'] == registro]
+        hosp_patient = hosp_df[hosp_df['REGISTRO'] == registro]
+
+        # Calculate the first and last date for this patient
+        first_date = lab_patient['FECHA'].min()
+        last_date = first_date + pd.Timedelta(days=limit_days)
+
+        # Select the rows that fall between the first and last date
+        lab_patient_new = lab_patient[(lab_patient['FECHA'] >= first_date) & (lab_patient['FECHA'] <= last_date)]
+        hosp_patient_new = hosp_patient[(hosp_patient['FINGRESO'] >= first_date) & (hosp_patient['FINGRESO'] <= last_date)]
+        print(hosp_patient_new)
+
+        # Append the selected rows to the result dataframes
+        lab_df_new = pd.concat([lab_df_new, lab_patient_new])
+        hosp_df_new = pd.concat([hosp_df_new, hosp_patient_new])
+
+    return lab_df_new, hosp_df_new
+
+
+def filter_df(df, col_name, min_val, max_val, verbose=False):
+    # Count the number of rows and unique patients before the filter
+    rows_before_filter = len(df)
+    unique_patients_before_filter = df['REGISTRO'].nunique()
+
+    # Filter the dataframe
+    filtered_df = df[(df[col_name] >= min_val) & (df[col_name] <= max_val)]
+
+    # Count the number of rows and unique patients after the filter
+    rows_after_filter = len(filtered_df)
+    unique_patients_after_filter = filtered_df['REGISTRO'].nunique()
+
+    # If verbose is True, print the number of rows and unique patients before and after the filter
+    if verbose:
+        print(f"Rows before filter: {rows_before_filter} (Unique patients: {unique_patients_before_filter})")
+        print(f"Rows after filter: {rows_after_filter} (Unique patients: {unique_patients_after_filter})")
+
+    return filtered_df
+
+
+def add_days_since_start(info_df, target_df, date_col):
+    # Create a mapping from 'REGISTRO' to 'INICIO_DP'
+    inicio_dp_mapping = info_df.drop_duplicates('REGISTRO').set_index('REGISTRO')['INICIO_DP'].to_dict()
+
+    # Filter target_df to only include rows with 'REGISTRO' present in info_df
+    target_df = target_df[target_df['REGISTRO'].isin(inicio_dp_mapping.keys())].copy()
+
+    # Convert the date columns to datetime format
+    target_df.loc[:, date_col] = pd.to_datetime(target_df[date_col])
+    for registro, inicio_dp in inicio_dp_mapping.items():
+        inicio_dp_mapping[registro] = pd.to_datetime(inicio_dp)
+
+    # Add the 'days_since_start' column
+    target_df.loc[:, 'days_since_start'] = target_df.apply(lambda row: (row[date_col] - inicio_dp_mapping[row['REGISTRO']]).days, axis=1)
+
+    return target_df
+
+
+def prepare_cox_df(lab_df, hosp_df, covariate_list):
+    # Calculate the mean values for each 'REGISTRO' in the lab_df
+    lab_df_mean = lab_df.groupby('REGISTRO')[covariate_list].mean().reset_index()
+
+    # Initialize the cox_df
+    cox_df = pd.DataFrame()
+
+    # Add the 'REGISTRO' column
+    cox_df['REGISTRO'] = lab_df_mean['REGISTRO']
+
+    # Add the 'days_since_start' column
+    #cox_df['days_since_start'] = 0
+
+    # Add the covariate columns
+    for covariate in covariate_list:
+        cox_df[covariate] = lab_df_mean[covariate]
+
+    # Add the 'finish_days' and 'event_col' columns
+    cox_df['finish_days'] = cox_df['REGISTRO'].apply(lambda x: hosp_df[hosp_df['REGISTRO'] == x]['days_since_start'].min() if x in hosp_df['REGISTRO'].values else 365)
+    cox_df['event_col'] = cox_df['REGISTRO'].apply(lambda x: True if x in hosp_df['REGISTRO'].values else False)
+
+    # Drop the 'REGISTRO' column
+    cox_df = cox_df.drop(columns=['REGISTRO'])
+    
+    return cox_df
+
+
+
+def cox_time_varying_prep(lab_df, hosp_df, covariate_list, study_time=365):
+    # Initialize the output dataframe
+    cox_df = pd.DataFrame()
+
+    # Get a list of unique 'REGISTRO' codes
+    registro_list = lab_df['REGISTRO'].unique()
+
+    # Go through the list of 'REGISTRO' codes
+    for registro in registro_list:
+        # Get all rows for the current 'REGISTRO' in lab_df and hosp_df
+        lab_rows = lab_df[lab_df['REGISTRO'] == registro].sort_values('days_since_start')
+        hosp_rows = hosp_df[hosp_df['REGISTRO'] == registro].sort_values('days_since_start')
+
+        # Go through the lab_rows
+        for i in range(len(lab_rows)):
+            # Get the start_col
+            start_col = lab_rows.iloc[i]['days_since_start']
+
+            # Get the covariate_col values
+            covariate_cols = lab_rows.iloc[i][covariate_list]
+
+            # Calculate the finish_col and event_col
+            if i < len(lab_rows) - 1:
+                finish_col = lab_rows.iloc[i + 1]['days_since_start']
+                event_col = False
+            elif len(hosp_rows) > 0 and hosp_rows.iloc[0]['days_since_start'] > start_col:
+                finish_col = hosp_rows.iloc[0]['days_since_start']
+                event_col = True
+            else:
+                finish_col = study_time
+                event_col = False
+
+            # Add the row to the output dataframe
+            row_df = pd.DataFrame({'REGISTRO': [registro], 'start_col': [start_col], 'finish_col': [finish_col], 'event_col': [event_col], **covariate_cols})
+            cox_df = pd.concat([cox_df, row_df], ignore_index=True)
+
+    return cox_df
+
+
