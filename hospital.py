@@ -310,8 +310,3 @@ def cox_time_varying_prep(lab_df, hosp_df, covariate_list, study_time=365):
             cox_df = pd.concat([cox_df, row_df], ignore_index=True)
 
     return cox_df
-
-<<<<<<< HEAD
-
-=======
->>>>>>> fc7c0e8 (Added residuals calculations for COX and fixed unresolved conflicts)

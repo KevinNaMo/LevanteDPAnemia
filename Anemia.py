@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import adfuller
 from scipy import stats
+from scipy.stats import ttest_ind
 
 def add_anemia_column(input_df, Hb_masc=13, Hb_fem=12):
     # Define a function to apply to each row
@@ -67,7 +68,7 @@ def anemia_prevalence(df, print_results=False, print_graph=False, tendency=False
 
     return prevalence.to_dict()
 
-def time_trend_analysis(df_input, time_frame, col_names, follow_up_limit, plot_results=False):
+def time_trend_analysis(df_input, time_frame, col_names, follow_up_limit, plot_results=False, t_test=False):
     # Add 'days_since_start' column
     df_input['days_since_start'] = (pd.to_datetime(df_input['FECHA']) - pd.to_datetime(df_input['INICIO_DP'])).dt.days
 
@@ -94,13 +95,30 @@ def time_trend_analysis(df_input, time_frame, col_names, follow_up_limit, plot_r
     # Delete the rows that exceed the follow_up_limit
     time_trend_df = time_trend_df[time_trend_df.index * time_frame <= follow_up_limit]
 
+    # Perform t-test if t_test is True
+    if t_test:
+        results = {}
+        for col in col_names:
+            # Select the rows that fall within the first and last time frames
+            df_first_time_frame = df_input[(df_input['days_since_start'] >= 0) & (df_input['days_since_start'] < time_frame)]
+            df_last_time_frame = df_input[(df_input['days_since_start'] >= (num_time_frames - 1) * time_frame) & (df_input['days_since_start'] < num_time_frames * time_frame)]
+
+            # Perform the t-test on the data from the first and last time frames
+            t_stat, p_val = ttest_ind(df_first_time_frame[col], df_last_time_frame[col], nan_policy='omit')
+
+            results[col] = p_val
+            print(f"{col}: p-value = {p_val}")
+
     # Plot the results if plot_results is True
     if plot_results:
         for col in col_names:
             plt.figure(figsize=(10, 5))
             plt.plot(time_trend_df.index * time_frame, time_trend_df[f'{col}_avg'], label='Average')
             plt.fill_between(time_trend_df.index * time_frame, time_trend_df[f'{col}_avg'] - time_trend_df[f'{col}_std'], time_trend_df[f'{col}_avg'] + time_trend_df[f'{col}_std'], color='b', alpha=0.1, label='Standard Deviation')
-            plt.title(f'Time Trend Analysis for {col}')
+            if t_test:
+                plt.title(f'Time Trend Analysis for {col} (p={results[col]:.3f})')
+            else:
+                plt.title(f'Time Trend Analysis for {col}')
             plt.xlabel('Days Since Start')
             plt.ylabel(col)
             plt.legend()
@@ -125,28 +143,6 @@ def stationary_test(df, col_str='_avg'):
                 print(f'The data in {column} is not stationary and may need differencing.\n')
 
 
-def t_test_first_last(df_input, col_end='_avg', print_results=False):
-    # Selecting only the columns ending with col_end
-    target_columns = df_input.filter(like=col_end)
-    
-    # Comparing the first and last row for these columns
-    first_row = target_columns.iloc[0]
-    last_row = target_columns.iloc[-1]
-    
-    # Dictionary to store p-values
-    p_values = {}
-    
-    # Calculating the p-value for each target column
-    for column in target_columns:
-        stat, p_value = stats.ttest_rel(first_row[column], last_row[column])
-        p_values[column] = p_value  # Storing the p-value in the dictionary
-        
-        if print_results:
-            print(f'Column {column} p-value: {p_value:.5f}')
-    
-    return p_values
-
-
 def calculate_residuals(cph, df, martingale=False, schonenfeld=False):
     if martingale:
         martingale_residuals = cph.compute_residuals(df, 'martingale')
@@ -154,3 +150,32 @@ def calculate_residuals(cph, df, martingale=False, schonenfeld=False):
     if schonenfeld:
         schonenfeld_residuals = cph.check_assumptions(df, p_value_threshold=0.05, show_plots=True)
         print("Schonenfeld Residuals:\n", schonenfeld_residuals)
+
+
+def cox_visualization(cph_results, df, survival_function=False, baseline_survival=False, baseline_cumulative_hazard=False, assumption=False):
+    if survival_function:
+        # Create a new DataFrame with the covariate values of interest
+        covariates = pd.DataFrame({'HEMOGLOBINA': [1], 'IST': [0], 'HIERRO': [0]})
+        # Calculate the survival function for these covariates
+        survival_function = cph_results.predict_survival_function(covariates)
+        # Plot the survival function
+        survival_function.plot()
+        plt.title('Survival function for specific covariate patterns')
+        plt.show()
+
+    if baseline_survival:
+        # Plot the baseline survival function
+        cph_results.baseline_survival_.plot()
+        plt.title('Baseline survival function')
+        plt.show()
+
+    if baseline_cumulative_hazard:
+        # Plot the baseline cumulative hazard function
+        cph_results.baseline_cumulative_hazard_.plot()
+        plt.title('Baseline cumulative hazard function')
+        plt.show()
+
+    if assumption:
+        # Check the proportional hazards assumption
+        cph_results.check_assumptions(df, p_value_threshold=0.05, show_plots=True)
+        
