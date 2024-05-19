@@ -1,1 +1,5 @@
-Data/LevanteDPC.xls
+/Data/LevanteDPC.xls
+**/.ipynb_checkpoints/
+Ingresos.pkl
+__pycache__/
+merged_df.pkl

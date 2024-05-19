@@ -310,3 +310,26 @@ def cox_time_varying_prep(lab_df, hosp_df, covariate_list, study_time=365):
             cox_df = pd.concat([cox_df, row_df], ignore_index=True)
 
     return cox_df
+
+def lab_freq_stats(df, print_avg=True, print_patient=False):
+    # Convert 'FECHA' to datetime
+    df['FECHA'] = pd.to_datetime(df['FECHA'])
+
+    # Sort the dataframe by 'REGISTRO' and 'FECHA'
+    df = df.sort_values(['REGISTRO', 'FECHA'])
+
+    # Calculate the difference between each 'FECHA' and the next 'FECHA' for each 'REGISTRO'
+    df['FECHA_diff'] = df.groupby('REGISTRO')['FECHA'].diff().dt.days
+
+    # Calculate the average 'FECHA_diff' for each 'REGISTRO'
+    avg_diff_per_patient = df.groupby('REGISTRO')['FECHA_diff'].mean()
+
+    if print_patient:
+        for registro, avg_diff in avg_diff_per_patient.items():
+            print(f"Patient {registro}: average time between tests = {avg_diff} days")
+
+    if print_avg:
+        global_avg_diff = avg_diff_per_patient.mean()
+        print(f"Global average time between tests = {global_avg_diff} days")
+
+    return avg_diff_per_patient

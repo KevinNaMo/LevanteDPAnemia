@@ -52,7 +52,7 @@ def anemia_prevalence(df, print_results=False, print_graph=False, tendency=False
 
     # Print results if print_results is True
     if print_results:
-        print("Yearly Anemia Prevalence:")
+        print("Prevalencia anual de anemia:")
         for year, value in prevalence.items():
             print(f"{year}: {value}%")
 
@@ -60,9 +60,9 @@ def anemia_prevalence(df, print_results=False, print_graph=False, tendency=False
     if print_graph:
         plt.figure(figsize=(10, 5))
         prevalence.plot(kind='bar')
-        plt.title('Yearly Anemia Prevalence')
-        plt.xlabel('Year')
-        plt.ylabel('Prevalence (%)')
+        plt.title('Prevalencia anual de anemia')
+        plt.xlabel('Año')
+        plt.ylabel('Prevalencia (%)')
 
         plt.show()
 
@@ -113,13 +113,13 @@ def time_trend_analysis(df_input, time_frame, col_names, follow_up_limit, plot_r
     if plot_results:
         for col in col_names:
             plt.figure(figsize=(10, 5))
-            plt.plot(time_trend_df.index * time_frame, time_trend_df[f'{col}_avg'], label='Average')
-            plt.fill_between(time_trend_df.index * time_frame, time_trend_df[f'{col}_avg'] - time_trend_df[f'{col}_std'], time_trend_df[f'{col}_avg'] + time_trend_df[f'{col}_std'], color='b', alpha=0.1, label='Standard Deviation')
+            plt.plot(time_trend_df.index * time_frame, time_trend_df[f'{col}_avg'], label='Media')
+            plt.fill_between(time_trend_df.index * time_frame, time_trend_df[f'{col}_avg'] - time_trend_df[f'{col}_std'], time_trend_df[f'{col}_avg'] + time_trend_df[f'{col}_std'], color='b', alpha=0.1, label='Desviación estándar')
             if t_test:
-                plt.title(f'Time Trend Analysis for {col} (p={results[col]:.3f})')
+                plt.title(f'Evolución temporal de {col} (p={results[col]:.3f})')
             else:
-                plt.title(f'Time Trend Analysis for {col}')
-            plt.xlabel('Days Since Start')
+                plt.title(f'Evolución temporal de {col}')
+            plt.xlabel('Días desde el inicio de DP')
             plt.ylabel(col)
             plt.legend()
             plt.show()
