@@ -145,3 +145,12 @@ def t_test_first_last(df_input, col_end='_avg', print_results=False):
             print(f'Column {column} p-value: {p_value:.5f}')
     
     return p_values
+
+
+def calculate_residuals(cph, df, martingale=False, schonenfeld=False):
+    if martingale:
+        martingale_residuals = cph.compute_residuals(df, 'martingale')
+        print("Martingale Residuals:\n", martingale_residuals)
+    if schonenfeld:
+        schonenfeld_residuals = cph.check_assumptions(df, p_value_threshold=0.05, show_plots=True)
+        print("Schonenfeld Residuals:\n", schonenfeld_residuals)
