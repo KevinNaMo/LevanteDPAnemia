@@ -311,4 +311,7 @@ def cox_time_varying_prep(lab_df, hosp_df, covariate_list, study_time=365):
 
     return cox_df
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> fc7c0e8 (Added residuals calculations for COX and fixed unresolved conflicts)
