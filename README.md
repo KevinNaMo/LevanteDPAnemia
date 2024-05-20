@@ -22,7 +22,7 @@ The repository contains two main Python files:
 
 ## Data
 
-The data used in this project is confidential and cannot be shared publicly. However, the code can be adapted to work with other datasets.
+This project is adapted to work with the Registro Levante de Diálisis Peritoneal database. The .xls or .xlsx files downloaded from
 
 ## Dependencies
 
