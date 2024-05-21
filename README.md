@@ -1,6 +1,6 @@
 # Anemia and Hospitalization in Peritoneal Dialysis
 
-This repository contains the code for a research project on the relationship between anemia and hospitalization in peritoneal dialysis patients.
+This repository contains the code for a research project on the relationship between anemia and hospitalization in peritoneal dialysis patients. This project was made as a 'TFG' research project
 
 ## Project Description
 
@@ -22,7 +22,7 @@ The repository contains two main Python files:
 
 ## Data
 
-This project is adapted to work with the Registro Levante de Diálisis Peritoneal database. The .xls or .xlsx files downloaded from
+This project is adapted to work with the .xls and .xlsx files from Registro Levante de Diálisis Peritoneal database. 
 
 ## Dependencies
 

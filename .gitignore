@@ -1,5 +1,6 @@
 /Data/LevanteDPC.xls
 **/.ipynb_checkpoints/
-Ingresos.pkl
+merged_ingresos.pkl
+merged_peritonitis.pkl
 __pycache__/
-merged_df.pkl
+merged_labs.pkl
