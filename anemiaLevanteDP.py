@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -43,7 +44,52 @@ def merge_dataframes(main_df, second_df, column_name):
     merged_df = pd.merge(main_df, second_df, on=column_name, how='left')
 
     return merged_df
-    
+
+
+def load_and_merge_files(directory, file_prefix, file_extension, verbose=False):
+    # Initialize a dictionary to hold all dataframes
+    all_dfs = {}
+
+    # Loop over all files in the directory
+    for filename in os.listdir(directory):
+        # Check if the filename matches the file_prefix and file_extension
+        if filename.startswith(file_prefix) and filename.endswith(file_extension):
+            # Load all sheets from the current file into dataframes
+            file_path = os.path.join(directory, filename)
+            xls = pd.ExcelFile(file_path)
+            dfs = {sheet_name: xls.parse(sheet_name) for sheet_name in xls.sheet_names}
+
+            # Loop over all dataframes and merge them with the corresponding ones in all_dfs
+            for sheet_name, df in dfs.items():
+                # Drop columns where all elements are NaN
+                df.dropna(axis=1, how='all', inplace=True)
+
+                # If this sheet name already exists in all_dfs, append the new dataframe to it
+                if sheet_name in all_dfs:
+                    all_dfs[sheet_name] = pd.concat([all_dfs[sheet_name], df], ignore_index=True)
+                # Otherwise, just add the new dataframe to all_dfs
+                else:
+                    all_dfs[sheet_name] = df
+
+                # If verbose is True, print the progress
+                if verbose:
+                    print(f"Added {len(df)} rows from {filename} to {sheet_name}")
+
+    # Check for duplicates and save the merged dataframes as pickle files
+    for sheet_name, df in all_dfs.items():
+        # Check for duplicates
+        duplicates = df.duplicated()
+        if duplicates.any():
+            print(f"Found {duplicates.sum()} duplicates in {sheet_name}")
+
+        # Drop duplicates
+        df.drop_duplicates(inplace=True)
+
+        # Save the dataframe as a pickle file
+        df.to_pickle(f"{sheet_name}.pkl")
+
+    return all_dfs
+
 # --------------------
 # Data preprocessing
 # --------------------
