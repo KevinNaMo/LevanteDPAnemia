@@ -366,7 +366,6 @@ def add_days_since_start(info_df, target_df, date_col):
     return target_df
 
 
-
 def add_anemia_column(input_df, Hb_masc=13, Hb_fem=12):
     # Define a function to apply to each row
     def check_anemia(row):
@@ -712,6 +711,71 @@ def anemia_prevalence(df, print_results=False, print_graph=False, tendency=False
         plt.show()
 
     return prevalence.to_dict()
+
+def anemia_prevalence_stack(df, hb_limit_male, hb_limit_female, year_range):
+    # Convert 'FECHA' to datetime format and extract the year
+    df['YEAR'] = pd.to_datetime(df['FECHA']).dt.year
+
+    # Calculate the yearly average 'HEMOGLOBINA' value for each 'REGISTRO'
+    df = df.groupby(['REGISTRO', 'SEXO', 'YEAR'])['HEMOGLOBINA'].mean().reset_index()
+
+    # Initialize the result dictionaries
+    male_results = {year: [0, 0, 0] for year in range(year_range[0], year_range[1] + 1)}
+    female_results = {year: [0, 0, 0] for year in range(year_range[0], year_range[1] + 1)}
+    male_counts = {year: 0 for year in range(year_range[0], year_range[1] + 1)}
+    female_counts = {year: 0 for year in range(year_range[0], year_range[1] + 1)}
+
+    # Loop over each row in the dataframe
+    for i, row in df.iterrows():
+        # Skip if the year is not within the range
+        if not year_range[0] <= row['YEAR'] <= year_range[1]:
+            continue
+
+        # Calculate the anemia level based on the sex and 'HEMOGLOBINA' value
+        if row['SEXO'] == '1. Hombre':
+            male_counts[row['YEAR']] += 1
+            if row['HEMOGLOBINA'] < hb_limit_male[2]:
+                male_results[row['YEAR']][2] += 1
+            elif row['HEMOGLOBINA'] < hb_limit_male[1]:
+                male_results[row['YEAR']][1] += 1
+            elif row['HEMOGLOBINA'] < hb_limit_male[0]:
+                male_results[row['YEAR']][0] += 1
+        elif row['SEXO'] == '2. Mujer':
+            female_counts[row['YEAR']] += 1
+            if row['HEMOGLOBINA'] < hb_limit_female[2]:
+                female_results[row['YEAR']][2] += 1
+            elif row['HEMOGLOBINA'] < hb_limit_female[1]:
+                female_results[row['YEAR']][1] += 1
+            elif row['HEMOGLOBINA'] < hb_limit_female[0]:
+                female_results[row['YEAR']][0] += 1
+
+    # Calculate the prevalence for each year and sex
+    for year in range(year_range[0], year_range[1] + 1):
+        for i in range(3):
+            male_results[year][i] = male_results[year][i] / male_counts[year] * 100 if male_counts[year] != 0 else 0
+            female_results[year][i] = female_results[year][i] / female_counts[year] * 100 if female_counts[year] != 0 else 0
+
+    # Plot the histograms
+    plt.figure(figsize=(10, 5))
+    plt.bar(male_results.keys(), [male_results[year][0] for year in male_results.keys()], color='#bf211e')
+    plt.bar(male_results.keys(), [male_results[year][1] for year in male_results.keys()], bottom=[male_results[year][0] for year in male_results.keys()], color='#f9dc5c')
+    plt.bar(male_results.keys(), [male_results[year][2] for year in male_results.keys()], bottom=[male_results[year][0] + male_results[year][1] for year in male_results.keys()], color='#688E26')
+    plt.title('Prevalencia de anemia en hombres')
+    plt.xlabel('Año')
+    plt.ylabel('Prevalencia (%)')
+    plt.legend()
+    plt.show()
+
+    plt.figure(figsize=(10, 5))
+    plt.bar(female_results.keys(), [female_results[year][0] for year in female_results.keys()], color='#bf211e')
+    plt.bar(female_results.keys(), [female_results[year][1] for year in female_results.keys()], bottom=[female_results[year][0] for year in female_results.keys()], color='#f9dc5c')
+    plt.bar(female_results.keys(), [female_results[year][2] for year in female_results.keys()], bottom=[female_results[year][0] + female_results[year][1] for year in female_results.keys()], color='#688E26')
+    plt.title('Prevalencia de anemia en mujeres')
+    plt.xlabel('Año')
+    plt.ylabel('Prevalencia (%)') 
+    plt.legend()
+    plt.show()
+
 
 def imprimir_prevalencia_extrema(prevalencia_anemia):
     # Encontrar el año con la prevalencia máxima
@@ -1100,4 +1164,108 @@ def plot_survival_function(rsf, rsf_df, patient_index):
     plt.ylabel('Survival Probability')
     plt.xlabel('Time')
     plt.show()
-    
+
+
+# --------------------
+# Andersen-gill 
+# --------------------
+
+def prepare_andersen_gill_df(lab_df, event_df, covariate_list, study_time):
+    # Initialize the output dataframe
+    ag_df = pd.DataFrame()
+
+    # Get a list of unique 'REGISTRO' codes
+    registro_list = lab_df['REGISTRO'].unique()
+
+    # Go through the list of 'REGISTRO' codes
+    for registro in registro_list:
+        # Get all rows for the current 'REGISTRO' in lab_df and event_df
+        lab_rows = lab_df[lab_df['REGISTRO'] == registro].sort_values('days_since_start')
+        event_rows = event_df[event_df['REGISTRO'] == registro].sort_values('days_since_start')
+
+        # Go through the lab_rows
+        for i in range(len(lab_rows)):
+            # Get the start_col
+            start_col = lab_rows.iloc[i]['days_since_start']
+
+            # Get the covariate_col values
+            covariate_cols = lab_rows.iloc[i][covariate_list]
+
+            # Calculate the finish_col and event_col
+            if i < len(lab_rows) - 1:
+                finish_col = lab_rows.iloc[i + 1]['days_since_start']
+                event_col = False
+            elif len(event_rows) > 0 and event_rows.iloc[0]['days_since_start'] > start_col:
+                finish_col = event_rows.iloc[0]['days_since_start']
+                event_col = True
+            else:
+                finish_col = study_time
+                event_col = False
+
+            # Add the row to the output dataframe
+            row_df = pd.DataFrame({'REGISTRO': [registro], 'start_col': [start_col], 'finish_col': [finish_col], 'event_col': [event_col], **covariate_cols})
+            ag_df = pd.concat([ag_df, row_df], ignore_index=True)
+
+    return ag_df
+
+
+# --------------------
+# Joint-model
+# --------------------
+
+
+def prepare_joint_model_df(lab_df, event_df, covariate_list, study_time):
+    # Initialize the output dataframe
+    joint_df = pd.DataFrame()
+
+    # Get a list of unique 'REGISTRO' codes
+    registro_list = lab_df['REGISTRO'].unique()
+
+    # Go through the list of 'REGISTRO' codes
+    for registro in registro_list:
+        # Get all rows for the current 'REGISTRO' in lab_df and event_df
+        lab_rows = lab_df[lab_df['REGISTRO'] == registro].sort_values('days_since_start')
+        event_rows = event_df[event_df['REGISTRO'] == registro].sort_values('days_since_start')
+
+        # Go through the lab_rows
+        for i in range(len(lab_rows)):
+            # Get the start_col
+            start_col = lab_rows.iloc[i]['days_since_start']
+
+            # Get the covariate_col values
+            covariate_cols = lab_rows.iloc[i][covariate_list]
+
+            # Calculate the finish_col and event_col
+            if i < len(lab_rows) - 1:
+                finish_col = lab_rows.iloc[i + 1]['days_since_start']
+                event_col = False
+            elif len(event_rows) > 0 and event_rows.iloc[0]['days_since_start'] > start_col:
+                finish_col = event_rows.iloc[0]['days_since_start']
+                event_col = True
+            else:
+                finish_col = study_time
+                event_col = False
+
+            # Add the row to the output dataframe
+            row_df = pd.DataFrame({'REGISTRO': [registro], 'start_col': [start_col], 'finish_col': [finish_col], 'event_col': [event_col], **covariate_cols})
+            joint_df = pd.concat([joint_df, row_df], ignore_index=True)
+
+    return joint_df
+
+def execute_joint_model(joint_df, time_col, event_col, covariate_list):
+    # Convert the dataframe to long format
+    long_df = to_long_format(joint_df, duration_col=time_col)
+
+    # Add the covariates to the timeline
+    long_df = add_covariate_to_timeline(long_df, joint_df, id_col='REGISTRO', event_col=event_col, duration_col=time_col, start_col='start_col', stop_col='finish_col', covariates=covariate_list)
+
+    # Initialize the CoxPHFitter
+    cph = CoxPHFitter()
+
+    # Fit the data to the model
+    cph.fit(long_df, duration_col='duration', event_col=event_col, start_stop_times=['start', 'stop'])
+
+    # Print the summary of the model
+    cph.print_summary()
+
+    return cph
