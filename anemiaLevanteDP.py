@@ -7,6 +7,10 @@ from scipy import stats
 from scipy.stats import ttest_ind
 from lifelines import CoxPHFitter
 from lifelines import CoxTimeVaryingFitter
+from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_curve, auc
+from scipy.stats import shapiro
+from sksurv.util import Surv
 
 
 # --------------------
@@ -225,6 +229,28 @@ def clean_df(df, col_list, verbose=False):
         print(
             f"The dataframe had {df_total_rows} rows (Unique patients: {unique_patients_before}), after the clean up of missing values, it has {new_df_rows} rows (Unique patients: {unique_patients_after})")
 
+    return df
+
+
+def clean_zero_values(df, col_list, verbose=False):
+    # Initial number of rows
+    initial_rows = len(df)
+    
+    # Check and remove rows with 0 or 0.0 in the specified columns
+    for col in col_list:
+        df = df[~(df[col].isin([0, 0.0]))]
+    
+    # Final number of rows
+    final_rows = len(df)
+    rows_deleted = initial_rows - final_rows
+    
+    # Verbose output
+    if verbose:
+        print(f"Number of rows before deleting: {initial_rows}")
+        print(f"Number of rows deleted: {rows_deleted}")
+        print(f"Total number of rows after deleting: {final_rows}")
+    
+    # Return the new dataframe without the deleted rows
     return df
 
 
@@ -687,13 +713,28 @@ def anemia_prevalence(df, print_results=False, print_graph=False, tendency=False
 
     return prevalence.to_dict()
 
-    
+def imprimir_prevalencia_extrema(prevalencia_anemia):
+    # Encontrar el año con la prevalencia máxima
+    año_max = max(prevalencia_anemia, key=prevalencia_anemia.get)
+    prevalencia_max = prevalencia_anemia[año_max]
+
+    # Encontrar el año con la prevalencia mínima
+    año_min = min(prevalencia_anemia, key=prevalencia_anemia.get)
+    prevalencia_min = prevalencia_anemia[año_min]
+
+    print(f"El año con la prevalencia máxima de anemia es {año_max} con un porcentaje de {prevalencia_max}%.")
+    print(f"El año con la prevalencia mínima de anemia es {año_min} con un porcentaje de {prevalencia_min}%.")
+
+
 # --------------------
 # Time Trend Analysis
 # --------------------
 
 
-def time_trend_analysis(df_input, time_frame, col_names, follow_up_limit, plot_results=False, t_test=False):
+def time_trend_analysis(df_input, time_frame, col_names, follow_up_limit, plot_results=False, t_test=False, normality_test=False):
+    # Create a copy of df_input to avoid SettingWithCopyWarning
+    df = df_input.copy()
+
     # Add 'days_since_start' column
     df_input['days_since_start'] = (pd.to_datetime(df_input['FECHA']) - pd.to_datetime(df_input['INICIO_DP'])).dt.days
 
@@ -727,6 +768,15 @@ def time_trend_analysis(df_input, time_frame, col_names, follow_up_limit, plot_r
             # Select the rows that fall within the first and last time frames
             df_first_time_frame = df_input[(df_input['days_since_start'] >= 0) & (df_input['days_since_start'] < time_frame)]
             df_last_time_frame = df_input[(df_input['days_since_start'] >= (num_time_frames - 1) * time_frame) & (df_input['days_since_start'] < num_time_frames * time_frame)]
+
+            # Perform the normality test if normality_test is True
+            if normality_test:
+                combined_data = pd.concat([df_first_time_frame[col], df_last_time_frame[col]]).dropna()
+                if len(combined_data) >= 3:
+                    stat, p = shapiro(combined_data)
+                    print(f"Normality test for {col}: Statistics={stat}, p={p}")
+                else:
+                    print(f"Not enough data to perform normality test for {col}")
 
             # Perform the t-test on the data from the first and last time frames
             t_stat, p_val = ttest_ind(df_first_time_frame[col], df_last_time_frame[col], nan_policy='omit')
@@ -874,3 +924,180 @@ def cox_time_varying_prep(lab_df, hosp_df, covariate_list, study_time=365):
             cox_df = pd.concat([cox_df, row_df], ignore_index=True)
 
     return cox_df
+
+
+def evaluate_cox_model(cph, df, duration_col, event_col, print_result=False):
+    # Calculate the risk scores
+    risk_scores = cph.predict_partial_hazard(df)
+    
+    # Calculate the true event values
+    true_event_values = (df[duration_col] <= 365) & df[event_col]
+    
+    # Calculate the ROC curve
+    fpr, tpr, _ = roc_curve(true_event_values, risk_scores)
+    
+    # Calculate the AUC
+    roc_auc = auc(fpr, tpr)
+    
+    # Print the AUC and ROC curve if print_result is True
+    if print_result:
+        print(f'AUC: {roc_auc}')
+        plt.figure()
+        plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic')
+        plt.legend(loc="lower right")
+        plt.show()
+    
+    return roc_auc
+
+
+def stratified_cox(df, duration_col, event_col, strat_col, strat_limits):
+    # Initialize a dictionary to store the Cox models and AUCs
+    cph_models = {}
+    aucs = {}
+
+    # Loop over the strat_limits
+    for i in range(len(strat_limits) - 1):
+        # Select the rows in df that fall within the current stratum
+        stratum_df = df[(df[strat_col] >= strat_limits[i]) & (df[strat_col] < strat_limits[i + 1])]
+
+        # Initialize the CoxPHFitter
+        cph = CoxPHFitter()
+
+        # Fit the data to the model
+        cph.fit(stratum_df, duration_col=duration_col, event_col=event_col)
+
+        # Print the summary of the model
+        print(f'CoxPHFitter results for {strat_col} between {strat_limits[i]} and {strat_limits[i + 1]}:')
+        cph.print_summary()
+
+        # Plot the coefficients of the model
+        cph.plot()
+        plt.title(f'CoxPHFitter coefficients for {strat_col} between {strat_limits[i]} and {strat_limits[i + 1]}')
+        plt.show()
+
+        # Calculate the risk scores
+        risk_scores = cph.predict_partial_hazard(stratum_df)
+
+        # Calculate the true event values
+        true_event_values = (stratum_df[duration_col] <= 365) & stratum_df[event_col]
+
+        # Calculate the ROC curve
+        fpr, tpr, _ = roc_curve(true_event_values, risk_scores)
+
+        # Calculate the AUC
+        roc_auc = auc(fpr, tpr)
+        aucs[f'{strat_col}_{strat_limits[i]}_{strat_limits[i + 1]}'] = roc_auc
+
+        # Print the AUC and ROC curve
+        print(f'AUC for {strat_col} between {strat_limits[i]} and {strat_limits[i + 1]}: {roc_auc}')
+        plt.figure()
+        plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic')
+        plt.legend(loc="lower right")
+        plt.show()
+
+        # Store the model in the dictionary
+        cph_models[f'{strat_col}_{strat_limits[i]}_{strat_limits[i + 1]}'] = cph
+
+    return cph_models, aucs
+
+
+def prepare_extended_cox_df(lab_df, hosp_df, covariate_list, study_time=365):
+    # Initialize the output dataframe
+    cox_df = pd.DataFrame()
+
+    # Get a list of unique 'REGISTRO' codes
+    registro_list = lab_df['REGISTRO'].unique()
+
+    # Go through the list of 'REGISTRO' codes
+    for registro in registro_list:
+        # Get all rows for the current 'REGISTRO' in lab_df and hosp_df
+        lab_rows = lab_df[lab_df['REGISTRO'] == registro].sort_values('days_since_start')
+        hosp_rows = hosp_df[hosp_df['REGISTRO'] == registro].sort_values('days_since_start')
+
+        # Go through the lab_rows
+        for i in range(len(lab_rows)):
+            # Get the start_col
+            start_col = lab_rows.iloc[i]['days_since_start']
+
+            # Get the covariate_col values
+            covariate_cols = lab_rows.iloc[i][covariate_list]
+
+            # Calculate the finish_col and event_col
+            if i < len(lab_rows) - 1:
+                finish_col = lab_rows.iloc[i + 1]['days_since_start']
+                event_col = False
+            elif len(hosp_rows) > 0 and hosp_rows.iloc[0]['days_since_start'] > start_col:
+                finish_col = hosp_rows.iloc[0]['days_since_start']
+                event_col = True
+            else:
+                finish_col = study_time
+                event_col = False
+
+            # Add the row to the output dataframe
+            row_df = pd.DataFrame({'REGISTRO': [registro], 'start_col': [start_col], 'finish_col': [finish_col], 'event_col': [event_col], **covariate_cols})
+            cox_df = pd.concat([cox_df, row_df], ignore_index=True)
+
+    return cox_df
+
+
+# --------------------
+# Random survival forest
+# --------------------
+
+def prepare_rsf_df(lab_df, hosp_df, covariate_list):
+    # Calculate the mean values for each 'REGISTRO' in the lab_df
+    lab_df_mean = lab_df.groupby('REGISTRO')[covariate_list].mean().reset_index()
+
+    # Initialize the rsf_df
+    rsf_df = pd.DataFrame()
+
+    # Add the 'REGISTRO' column
+    rsf_df['REGISTRO'] = lab_df_mean['REGISTRO']
+
+    # Add the covariate columns
+    for covariate in covariate_list:
+        rsf_df[covariate] = lab_df_mean[covariate]
+
+    # Calculate the 'time' and 'event' columns
+    rsf_df['time'] = rsf_df['REGISTRO'].apply(lambda x: hosp_df[hosp_df['REGISTRO'] == x]['days_since_start'].min() if x in hosp_df['REGISTRO'].values else 365)
+    rsf_df['event'] = rsf_df['REGISTRO'].apply(lambda x: True if x in hosp_df['REGISTRO'].values else False)
+
+    # Drop the 'REGISTRO' column
+    rsf_df = rsf_df.drop(columns=['REGISTRO'])
+
+    # Convert the 'time' and 'event' columns to a structured array
+    y = Surv.from_dataframe('event', 'time', rsf_df)
+
+    # Drop the 'time' and 'event' columns from rsf_df
+    rsf_df = rsf_df.drop(columns=['time', 'event'])
+
+    return rsf_df, y
+
+
+def plot_survival_function(rsf, rsf_df, patient_index):
+    # Get the survival function for the specified patient
+    survival_function = rsf.predict_survival_function(rsf_df.iloc[patient_index:patient_index+1, :])
+
+    # Get the time points and survival probabilities from the StepFunction object
+    time_points = survival_function.x
+    survival_probabilities = survival_function.y
+
+    # Plot the survival function
+    plt.step(time_points, survival_probabilities, where="post")
+    plt.title('Survival Function')
+    plt.ylabel('Survival Probability')
+    plt.xlabel('Time')
+    plt.show()
+    
