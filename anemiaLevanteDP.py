@@ -757,23 +757,23 @@ def anemia_prevalence_stack(df, hb_limit_male, hb_limit_female, year_range):
 
     # Plot the histograms
     plt.figure(figsize=(10, 5))
-    plt.bar(male_results.keys(), [male_results[year][0] for year in male_results.keys()], color='#bf211e')
-    plt.bar(male_results.keys(), [male_results[year][1] for year in male_results.keys()], bottom=[male_results[year][0] for year in male_results.keys()], color='#f9dc5c')
-    plt.bar(male_results.keys(), [male_results[year][2] for year in male_results.keys()], bottom=[male_results[year][0] + male_results[year][1] for year in male_results.keys()], color='#688E26')
+    plt.bar(male_results.keys(), [male_results[year][0] for year in male_results.keys()], color='#bf211e', label='Hb < 10 g/dl')
+    plt.bar(male_results.keys(), [male_results[year][1] for year in male_results.keys()], bottom=[male_results[year][0] for year in male_results.keys()], color='#f9dc5c', label='Hb 11-10 g/dl')
+    plt.bar(male_results.keys(), [male_results[year][2] for year in male_results.keys()], bottom=[male_results[year][0] + male_results[year][1] for year in male_results.keys()], color='#688E26', label='Hb 13-11 g/dl')
     plt.title('Prevalencia de anemia en hombres')
     plt.xlabel('Año')
     plt.ylabel('Prevalencia (%)')
-    plt.legend()
+    plt.legend(loc='lower right')
     plt.show()
 
     plt.figure(figsize=(10, 5))
-    plt.bar(female_results.keys(), [female_results[year][0] for year in female_results.keys()], color='#bf211e')
-    plt.bar(female_results.keys(), [female_results[year][1] for year in female_results.keys()], bottom=[female_results[year][0] for year in female_results.keys()], color='#f9dc5c')
-    plt.bar(female_results.keys(), [female_results[year][2] for year in female_results.keys()], bottom=[female_results[year][0] + female_results[year][1] for year in female_results.keys()], color='#688E26')
+    plt.bar(female_results.keys(), [female_results[year][0] for year in female_results.keys()], color='#bf211e', label='Hb < 10 g/dl')
+    plt.bar(female_results.keys(), [female_results[year][1] for year in female_results.keys()], bottom=[female_results[year][0] for year in female_results.keys()], color='#f9dc5c', label='Hb 11-10 g/dl')
+    plt.bar(female_results.keys(), [female_results[year][2] for year in female_results.keys()], bottom=[female_results[year][0] + female_results[year][1] for year in female_results.keys()], color='#688E26', label='Hb 12-11 g/dl')
     plt.title('Prevalencia de anemia en mujeres')
     plt.xlabel('Año')
     plt.ylabel('Prevalencia (%)') 
-    plt.legend()
+    plt.legend(loc='lower right')
     plt.show()
 
 
