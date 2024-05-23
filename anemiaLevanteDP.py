@@ -606,7 +606,7 @@ def follow_up_periods(df, print_patients=False):
 # --------------------
 
 
-def anemia_prevalence_stack(df, hb_limit_male, hb_limit_female, year_range):
+def anemia_prevalence_stack(df, hb_limit_male, hb_limit_female, year_range, print_maxmin=False):
     # Convert 'FECHA' to datetime format and extract the year
     df['YEAR'] = pd.to_datetime(df['FECHA']).dt.year
 
@@ -682,6 +682,30 @@ def anemia_prevalence_stack(df, hb_limit_male, hb_limit_female, year_range):
     female_results_readable = {year: {'Hb < 10 g/dl': results[0], 'Hb 11-10 g/dl': results[1], 'Hb 13-11 g/dl': results[2]} for year, results in female_results.items()}
     total_results_readable = {year: {'Hb < 10 g/dl': results[0], 'Hb 11-10 g/dl': results[1], 'Hb 13-11 g/dl': results[2]} for year, results in total_results.items()}
 
+    if print_maxmin:
+         # Initialize variables to store the highest and lowest sums and their corresponding years
+        highest_sum = 0
+        highest_year = None
+        lowest_sum = float('inf')
+        lowest_year = None
+    
+        # Iterate over the dictionary
+        for year, categories in total_results_readable.items():
+            # Calculate the sum of the percentages for the current year
+            current_sum = sum(categories.values())
+            
+            # If the current sum is higher than the highest sum found so far, update the highest sum and year
+            if current_sum > highest_sum:
+                highest_sum = current_sum
+                highest_year = year
+    
+            # If the current sum is lower than the lowest sum found so far, update the lowest sum and year
+            if current_sum < lowest_sum:
+                lowest_sum = current_sum
+                lowest_year = year
+    
+        # Print the results
+        print(f'Lowest value year {lowest_year}: {lowest_sum}\nHighest value year {highest_year}: {highest_sum}')
     return male_results_readable, female_results_readable, total_results_readable, df
 
 # --------------------
