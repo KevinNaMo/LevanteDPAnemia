@@ -675,8 +675,11 @@ def anemia_prevalence_stack(df, hb_limit_male, hb_limit_female, year_range):
     # Convert 'FECHA' to datetime format and extract the year
     df['YEAR'] = pd.to_datetime(df['FECHA']).dt.year
 
-    # Calculate the yearly average 'HEMOGLOBINA' value for each 'REGISTRO'
+    # Calculate the yearly average 'HEMOGLOBINA' value for each 'REGISTRO' and 'SEXO'
     df = df.groupby(['REGISTRO', 'SEXO', 'YEAR'])['HEMOGLOBINA'].mean().reset_index()
+
+    # Rename the 'HEMOGLOBINA' column to 'HB_AVG'
+    df.rename(columns={'HEMOGLOBINA': 'HB_AVG'}, inplace=True)
 
     # Initialize the result dictionaries
     male_results = {year: [0, 0, 0] for year in range(year_range[0], year_range[1] + 1)}
@@ -692,31 +695,31 @@ def anemia_prevalence_stack(df, hb_limit_male, hb_limit_female, year_range):
         if not year_range[0] <= row['YEAR'] <= year_range[1]:
             continue
 
-        # Calculate the anemia level based on the sex and 'HEMOGLOBINA' value
+        # Calculate the anemia level based on the sex and 'HB_AVG' value
         if row['SEXO'] == '1. Hombre':
             male_counts[row['YEAR']] += 1
             total_counts[row['YEAR']] += 1
-            if row['HEMOGLOBINA'] < hb_limit_male[2]:
-                male_results[row['YEAR']][2] += 1
-                total_results[row['YEAR']][2] += 1
-            elif row['HEMOGLOBINA'] < hb_limit_male[1]:
-                male_results[row['YEAR']][1] += 1
-                total_results[row['YEAR']][1] += 1
-            elif row['HEMOGLOBINA'] < hb_limit_male[0]:
+            if row['HB_AVG'] < hb_limit_male[0]:
                 male_results[row['YEAR']][0] += 1
                 total_results[row['YEAR']][0] += 1
+            elif row['HB_AVG'] < hb_limit_male[1]:
+                male_results[row['YEAR']][1] += 1
+                total_results[row['YEAR']][1] += 1
+            elif row['HB_AVG'] < hb_limit_male[2]:
+                male_results[row['YEAR']][2] += 1
+                total_results[row['YEAR']][2] += 1
         elif row['SEXO'] == '2. Mujer':
             female_counts[row['YEAR']] += 1
             total_counts[row['YEAR']] += 1
-            if row['HEMOGLOBINA'] < hb_limit_female[2]:
-                female_results[row['YEAR']][2] += 1
-                total_results[row['YEAR']][2] += 1
-            elif row['HEMOGLOBINA'] < hb_limit_female[1]:
-                female_results[row['YEAR']][1] += 1
-                total_results[row['YEAR']][1] += 1
-            elif row['HEMOGLOBINA'] < hb_limit_female[0]:
+            if row['HB_AVG'] < hb_limit_female[0]:
                 female_results[row['YEAR']][0] += 1
                 total_results[row['YEAR']][0] += 1
+            elif row['HB_AVG'] < hb_limit_female[1]:
+                female_results[row['YEAR']][1] += 1
+                total_results[row['YEAR']][1] += 1
+            elif row['HB_AVG'] < hb_limit_female[2]:
+                female_results[row['YEAR']][2] += 1
+                total_results[row['YEAR']][2] += 1
 
     # Calculate the prevalence for each year and sex
     for year in range(year_range[0], year_range[1] + 1):
@@ -730,35 +733,21 @@ def anemia_prevalence_stack(df, hb_limit_male, hb_limit_female, year_range):
         plt.bar(results.keys(), [results[year][1] for year in results.keys()], bottom=[results[year][0] for year in results.keys()], color='#f9dc5c', label='Hb 11-10 g/dl')
         plt.bar(results.keys(), [results[year][2] for year in results.keys()], bottom=[results[year][0] + results[year][1] for year in results.keys()], color='#688E26', label='Hb 13-11 g/dl')
         plt.title(title)
-        plt.xlabel('Año')
-        plt.ylabel('Prevalencia (%)')
+        plt.xlabel('Year')
+        plt.ylabel('Prevalence (%)')
         plt.legend(loc='lower right')
         plt.show()
-        # Plot the histograms
-        plot_histogram(male_results, 'Prevalencia de anemia en hombres')
-        plot_histogram(female_results, 'Prevalencia de anemia en mujeres')
-        plot_histogram(total_results, 'Prevalencia de anemia en total')
+    # Plot the histograms
+    plot_histogram(male_results, 'Prevalencia de anemia en hombres')
+    plot_histogram(female_results, 'Prevalencia de anemia en mujeres')
+    plot_histogram(total_results, 'Prevalencia de anemia en total')
 
     # Convert the results to a more human-readable format
     male_results_readable = {year: {'Hb < 10 g/dl': results[0], 'Hb 11-10 g/dl': results[1], 'Hb 13-11 g/dl': results[2]} for year, results in male_results.items()}
     female_results_readable = {year: {'Hb < 10 g/dl': results[0], 'Hb 11-10 g/dl': results[1], 'Hb 13-11 g/dl': results[2]} for year, results in female_results.items()}
     total_results_readable = {year: {'Hb < 10 g/dl': results[0], 'Hb 11-10 g/dl': results[1], 'Hb 13-11 g/dl': results[2]} for year, results in total_results.items()}
 
-    return male_results_readable, female_results_readable, total_results_readable
-
-
-def imprimir_prevalencia_extrema(prevalencia_anemia):
-    # Encontrar el año con la prevalencia máxima
-    año_max = max(prevalencia_anemia, key=prevalencia_anemia.get)
-    prevalencia_max = prevalencia_anemia[año_max]
-
-    # Encontrar el año con la prevalencia mínima
-    año_min = min(prevalencia_anemia, key=prevalencia_anemia.get)
-    prevalencia_min = prevalencia_anemia[año_min]
-
-    print(f"El año con la prevalencia máxima de anemia es {año_max} con un porcentaje de {prevalencia_max}%.")
-    print(f"El año con la prevalencia mínima de anemia es {año_min} con un porcentaje de {prevalencia_min}%.")
-
+    return male_results_readable, female_results_readable, total_results_readable, df
 
 # --------------------
 # Time Trend Analysis
