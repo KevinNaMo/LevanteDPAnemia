@@ -7,7 +7,8 @@ from lifelines import CoxPHFitter
 from lifelines import CoxTimeVaryingFitter
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import roc_curve, auc
-from lifelines.utils import Surv
+from sksurv.util import Surv
+from scipy.stats import ttest_ind
 
 
 # --------------------
