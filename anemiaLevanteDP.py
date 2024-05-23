@@ -3,51 +3,16 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from statsmodels.tsa.stattools import adfuller
-from scipy import stats
-from scipy.stats import ttest_ind
 from lifelines import CoxPHFitter
 from lifelines import CoxTimeVaryingFitter
 from sklearn.metrics import roc_auc_score
 from sklearn.metrics import roc_curve, auc
-from scipy.stats import shapiro
-from sksurv.util import Surv
+from lifelines.utils import Surv
 
 
 # --------------------
 # Data import
 # --------------------
-
-
-def load_excel_files(file_paths):
-    # Initialize a dictionary to hold all dataframes
-    all_dfs = {}
-
-    # Loop over all file paths
-    for file_path in file_paths:
-        # Load all sheets from the current file into dataframes
-        xls = pd.ExcelFile(file_path)
-        dfs = {sheet_name: xls.parse(sheet_name) for sheet_name in xls.sheet_names}
-
-        # Loop over all dataframes and merge them with the corresponding ones in all_dfs
-        for sheet_name, df in dfs.items():
-            # Drop columns where all elements are NaN
-            df.dropna(axis=1, how='all', inplace=True)
-
-            # If this sheet name already exists in all_dfs, append the new dataframe to it
-            if sheet_name in all_dfs:
-                all_dfs[sheet_name] = pd.concat([all_dfs[sheet_name], df], ignore_index=True)
-            # Otherwise, just add the new dataframe to all_dfs
-            else:
-                all_dfs[sheet_name] = df
-
-    return all_dfs
-
-
-def merge_dataframes(main_df, second_df, column_name):
-    # Merge the dataframes on the specified column
-    merged_df = pd.merge(main_df, second_df, on=column_name, how='left')
-
-    return merged_df
 
 
 def load_and_merge_files(directory, file_prefix, file_extension, verbose=False):
@@ -159,7 +124,6 @@ def exclude_patients(df, exclude_col, verbose=False):
     return df
 
 
-
 def include_patients(df, max_diff_days, exclusion_point='before_after'):
     # Convert 'FECHA' and 'INICIO_DP' to datetime
     df['FECHA'] = pd.to_datetime(df['FECHA'])
@@ -252,35 +216,6 @@ def clean_zero_values(df, col_list, verbose=False):
     
     # Return the new dataframe without the deleted rows
     return df
-
-
-def df_binner(df, bin_size, policy='first'):
-    # Calculate the minimum date for each patient
-    min_dates = df.groupby('REGISTRO')['FECHA'].min()
-
-    # Calculate the number of days since the first date for each patient
-    df['days_since_first'] = df.apply(lambda row: (row['FECHA'] - min_dates[row['REGISTRO']]).days, axis=1)
-
-    # Calculate the bin number
-    df['bin_num'] = np.floor(df['days_since_first'] / bin_size).astype(int)
-
-    # Calculate the start and end date of each bin
-    #df.reset_index(inplace=True)
-    #df['start_bin'] = min_dates[df['REGISTRO']] + pd.to_timedelta(df['bin_num'] * bin_size, unit='D')
-    #df['end_bin'] = min_dates[df['REGISTRO']] + pd.to_timedelta((df['bin_num'] + 1) * bin_size, unit='D')
-
-    # Group by 'REGISTRO' and 'bin_num', and select the row based on the policy
-    if policy == 'first':
-        grouped = df.sort_values('FECHA').groupby(['REGISTRO', 'bin_num']).first()
-    elif policy == 'last':
-        grouped = df.sort_values('FECHA').groupby(['REGISTRO', 'bin_num']).last()
-    else:
-        raise ValueError(f"Invalid policy: {policy}. Valid options are 'first' and 'last'.")
-
-    # Reset the index
-    grouped.reset_index(inplace=True)
-
-    return grouped
 
     
 # --------------------
@@ -394,7 +329,7 @@ def add_anemia_column(input_df, Hb_masc=13, Hb_fem=12):
 # --------------------
 
 
-def calculate_baseline(input_df, cat_cols, lab_cols, aggregation='first'):
+def calculate_baseline(input_df, cat_cols, lab_cols, aggregation='first', print_results=False):
     # Initialize the result dictionary
     result = {}
 
@@ -427,21 +362,21 @@ def calculate_baseline(input_df, cat_cols, lab_cols, aggregation='first'):
         # Add the statistics to the result dictionary
         result[col] = {'average': avg, 'min': min_val, 'max': max_val, 'std_dev': std_dev}
 
-    return result
+    if print_results:
+        # Loop over all items in the result dictionary
+        for col, stats in result.items():
+            print(f'{col}:')
+            # If the stats is another dictionary (for numerical columns), print each stat on a separate line
+            if isinstance(stats, dict):
+                for stat, value in stats.items():
+                    print(f'    {stat}: {value}')
+            # If the stats is not a dictionary (for categorical columns), print it on a single line
+            else:
+                print(f'    counts: \n{stats["counts"]}')
+                print(f'    percentages: \n{stats["percentages"]}')
+            print()
 
-def print_baseline(baseline):
-    # Loop over all items in the baseline dictionary
-    for col, stats in baseline.items():
-        print(f'{col}:')
-        # If the stats is another dictionary (for numerical columns), print each stat on a separate line
-        if isinstance(stats, dict):
-            for stat, value in stats.items():
-                print(f'    {stat}: {value}')
-        # If the stats is not a dictionary (for categorical columns), print it on a single line
-        else:
-            print(f'    counts: \n{stats["counts"]}')
-            print(f'    percentages: \n{stats["percentages"]}')
-        print()
+    return result
 
     
 # --------------------
@@ -560,7 +495,6 @@ def print_nan_col_results(col_results):
         for result, value in results.items():
             print(f'    {result}: {value}')
         print()
-
 
 
 def check_common_values(base_df, second_df, base_col, second_col, registro_col):
