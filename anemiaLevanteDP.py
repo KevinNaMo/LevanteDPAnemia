@@ -684,28 +684,68 @@ def anemia_prevalence_stack(df, hb_limit_male, hb_limit_female, year_range, prin
 
     if print_maxmin:
          # Initialize variables to store the highest and lowest sums and their corresponding years
-        highest_sum = 0
-        highest_year = None
-        lowest_sum = float('inf')
-        lowest_year = None
-    
+        highest_sum_all = 0
+        highest_year_all = None
+        lowest_sum_all = float('inf')
+        lowest_year_all = None
+        highest_sum_10 = 0
+        highest_year_10 = None
+        lowest_sum_10 = float('inf')
+        lowest_year_10 = None
+        highest_sum_11 = 0
+        highest_year_11 = None
+        lowest_sum_11 = float('inf')
+        lowest_year_11 = None
+
         # Iterate over the dictionary
         for year, categories in total_results_readable.items():
             # Calculate the sum of the percentages for the current year
             current_sum = sum(categories.values())
             
             # If the current sum is higher than the highest sum found so far, update the highest sum and year
-            if current_sum > highest_sum:
-                highest_sum = current_sum
-                highest_year = year
+            if current_sum > highest_sum_all:
+                highest_sum_all = current_sum
+                highest_year_all = year
     
             # If the current sum is lower than the lowest sum found so far, update the lowest sum and year
-            if current_sum < lowest_sum:
-                lowest_sum = current_sum
-                lowest_year = year
+            if current_sum < lowest_sum_all:
+                lowest_sum_all = current_sum
+                lowest_year_all = year
+                
+         # Iterate over the dictionary
+        for year, categories in total_results_readable.items():
+            # Calculate the sum of the percentages for the current year
+            current_sum = categories['Hb < 10 g/dl']
+            
+            # If the current sum is higher than the highest sum found so far, update the highest sum and year
+            if current_sum > highest_sum_10:
+                highest_sum_10 = current_sum
+                highest_year_10 = year
     
+            # If the current sum is lower than the lowest sum found so far, update the lowest sum and year
+            if current_sum < lowest_sum_10:
+                lowest_sum_10 = current_sum
+                lowest_year_10 = year
+
+        for year, categories in total_results_readable.items():
+            # Calculate the sum of the percentages for the current year
+            current_sum = first_value = categories['Hb 11-10 g/dl']
+            
+            # If the current sum is higher than the highest sum found so far, update the highest sum and year
+            if current_sum > highest_sum_11:
+                highest_sum_11 = current_sum
+                highest_year_11 = year
+    
+            # If the current sum is lower than the lowest sum found so far, update the lowest sum and year
+            if current_sum < lowest_sum_11:
+                lowest_sum_11 = current_sum
+                lowest_year_11 = year
+                
         # Print the results
-        print(f'Lowest value year {lowest_year}: {lowest_sum}\nHighest value year {highest_year}: {highest_sum}')
+        print(f'Lowest value year_all {lowest_year_all}: {lowest_sum_all}\nHighest value year_all {highest_year_all}: {highest_sum_all}')
+        print(f'Lowest value year < 10g/dl {lowest_year_10}: {lowest_sum_10}\nHighest value year <10 g/dl {highest_year_10}: {highest_sum_10}')
+        print(f'Lowest value year < 11 g/dl{lowest_year_11}: {lowest_sum_11}\nHighest value year < 11 g/dl{highest_year_11}: {highest_sum_11}')
+
     return male_results_readable, female_results_readable, total_results_readable, df
 
 # --------------------
